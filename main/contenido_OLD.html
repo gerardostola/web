@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contenido dinámico con Fetch</title>
+</head>
+<body>
+    <h1>Hola Mundo</h1>
+    <p>Contenido estático de la página.</p>
+
+    <!-- Contenedor para el contenido dinámico -->
+    <div id="campo-1">
+        <p>Cargando contenido...</p>
+    </div>
+
+    <script>
+        fetch('dyn?id=1')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error');
+                }
+                return response.text();
+            })
+            .then(data => {
+                // Insertar el contenido en el contenedor
+                document.getElementById('campo-1').innerHTML = data;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('campo-1').innerHTML = '<p>Error al cargar el contenido.</p>';
+            });
+    </script>
+</body>
+</html>
