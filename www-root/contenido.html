@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contenido Dinámico</title>
+    <script src="contenido_dinamico.js" defer></script>
+</head>
+<body>
+    <h1>Contenido Dinámico</h1>
+    <p>Ejemplo de carga de contenido y opciones dinámicas.</p>
+
+    <div id="campo-1">
+        <button onclick="cargarContenido(1, 'campo-1')">Cargar Contenido 1</button>
+    </div>
+    <div id="campo-2">
+        <button onclick="cargarContenido(2, 'campo-2')">Cargar Contenido 2</button>
+    </div>
+
+    <!-- Formulario con Menú de Opciones -->
+    <h2>Formulario con Menú de Opciones</h2>
+    <form id="miFormulario1" method="post">
+        <div>
+            <label for="menuOpciones1">Seleccione una opción:</label>
+            <select id="menuOpciones1" name="menuOpciones1" data-sel="1">
+                <option value="">Cargando opciones...</option>
+            </select>
+        </div>
+        <div>
+            <label for="menuOpciones2">Seleccione una opción:</label>
+            <select id="menuOpciones2" name="menuOpciones2" data-sel="2">
+                <option value="">Cargando opciones...</option>
+            </select>
+        </div>
+        <div>
+            <button type="submit">Enviar</button>
+        </div>
+    </form>
+</body>
+</html>

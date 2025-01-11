@@ -7,6 +7,7 @@
 
 #include "esp_err.h"
 #include "esp_log.h"
+#include "cJSON.h"
 
 #include "esp_vfs.h"
 #include "esp_spiffs.h"
@@ -15,6 +16,7 @@
 
 /* Max length a file path can have on storage */
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
+#define WEBHANDLER_MAX_CONTENT_BUFFER 256
 
 /* Max size of an individual file. Make sure this
  * value is same as that set in upload_script.html */
@@ -167,45 +169,97 @@ static esp_err_t wh_get_handler(httpd_req_t *req)
 /* Handler for dynamic GET */
 static esp_err_t dynamic_get_handler(httpd_req_t *req)
 {
-  int id;
+  int id, sel;
   struct file_server_data *server_data = (struct file_server_data *)req->user_ctx;
   char *returned_data;
-  size_t returned_data_size;
-   
-  if (1!=sscanf (req->uri,"/dyn?id=%u", &id)) {  
-    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Error");
-    return ESP_FAIL;
-  }
+  size_t returned_data_size, buff_size;
+  char buff[WEBHANDLER_MAX_CONTENT_BUFFER];
   
   
-  for (int i=0; i<server_data->dynamic_table_size;i++) {
-      
-      if (id==server_data->dynamic_table[i].id) {
+  if (1==sscanf (req->uri,"/dyn?id=%u", &id)) {  
+  
+	  for (int i=0; i<server_data->dynamic_table_size;i++) {
+		  
+		  if (id==server_data->dynamic_table[i].id) {
 
-        if (ESP_OK==set_content_type_from_enum(req, server_data->dynamic_table[i].content_type)) {
-          if (NULL==server_data->dynamic_table[i].callback) {
-            httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Error");
-            return ESP_FAIL;  
-          }
-          returned_data = server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_GET, NULL);
-          returned_data_size = strlen (returned_data);
-          if (returned_data_size>0) {
-            httpd_resp_send(req, (const char*) returned_data, returned_data_size);
-            return ESP_OK;
-          }
-        }
-        break;
-      }
+			if (ESP_OK==set_content_type_from_enum(req, server_data->dynamic_table[i].content_type)) {
+			  if (NULL==server_data->dynamic_table[i].callback) {
+				httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Error");
+				return ESP_FAIL;  
+			  }
+			  returned_data = server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_GET, NULL);
+			  returned_data_size = strlen (returned_data);
+			  if (returned_data_size>0) {
+				httpd_resp_send(req, (const char*) returned_data, returned_data_size);
+				return ESP_OK;
+			  }
+			}
+			goto dynamic_get_handler_end;
+		  }
+	  }
   }
-  httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Error");
+
+  if (1==sscanf (req->uri,"/dyn?sel=%u", &sel)) {
+		ESP_LOGI(TAG, "sel %d",sel);	 
+		if (sel==1) {
+			buff_size=sprintf(buff,"{\"opciones\": [{ \"value\": \"opcion1\", \"text\": \"Peras\" },{ \"value\": \"opcion2\", \"text\": \"Bananas\" },{ \"value\": \"opcion3\", \"text\": \"Naranjas\" }],\"seleccionado\": \"opcion2\"}");
+		}
+		else {
+			buff_size=sprintf(buff,"{\"opciones\": [{ \"value\": \"opcion1\", \"text\": \"Ajo\" },{ \"value\": \"opcion2\", \"text\": \"Limones\" },{ \"value\": \"opcion3\", \"text\": \"Señora\" }],\"seleccionado\": \"opcion3\"}");
+		}
+		httpd_resp_send(req, (const char*) buff, buff_size);
+		return ESP_OK;
+  /*
+	  for (int i=0; i<server_data->dynamic_table_size;i++) {
+		  
+		  if (id==server_data->dynamic_table[i].id) {
+
+			if (ESP_OK==set_content_type_from_enum(req, server_data->dynamic_table[i].content_type)) {
+			  if (NULL==server_data->dynamic_table[i].callback) {
+				httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Error");
+				return ESP_FAIL;  
+			  }
+			  returned_data = server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_GET, NULL);
+			  returned_data_size = strlen (returned_data);
+			  if (returned_data_size>0) {
+				httpd_resp_send(req, (const char*) returned_data, returned_data_size);
+				return ESP_OK;
+			  }
+			}
+			goto dynamic_get_handler_end;
+		  }
+	  }
+*/
+  }
+
+dynamic_get_handler_end:  
+  httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
   ESP_LOGE(__FUNCTION__, "ERROR");
   return ESP_FAIL;
+}
+
+
+
+
+void parse_object(cJSON *item)
+{
+	cJSON *subitem=item->child;
+	while (subitem)
+	{
+		// handle subitem
+		if (subitem->child) {
+			parse_object(subitem->child);
+		}
+
+		subitem=subitem->next;
+	}
 }
 
 /* Handler for POSTs */
 static esp_err_t wh_post_handler(httpd_req_t *req)
 {
-  char buff[64];
+  esp_err_t	result = ESP_FAIL;
+  char buff[WEBHANDLER_MAX_CONTENT_BUFFER];
   
   //struct file_server_data *server_data = (struct file_server_data *)req->user_ctx;
   /*
@@ -225,11 +279,10 @@ static esp_err_t wh_post_handler(httpd_req_t *req)
 */
     
     ESP_LOGI(__FUNCTION__, "%s", req->uri);
-   
 
     ESP_LOGI(__FUNCTION__, "content length %d", req->content_len);
 
-    if (req->content_len>=64) {
+    if (req->content_len>=WEBHANDLER_MAX_CONTENT_BUFFER) {
       httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Buffer too small");
       return ESP_FAIL;
     }
@@ -244,14 +297,63 @@ static esp_err_t wh_post_handler(httpd_req_t *req)
     buff[received]=0;
     
     ESP_LOGI(__FUNCTION__, "content %s", buff);
+	
+/*
+	cJSON *root = cJSON_Parse(buff);
+	
+	
+	//https://github.com/DaveGamble/cJSON/tree/acc76239bee01d8e9c858ae2cab296704e52d916?tab=readme-ov-file#parsing-json
+    
+	if (root == NULL) 
+    {
+		ESP_LOGE(__FUNCTION__, "cJSON_Parse");
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL)
+        {
+  			ESP_LOGE(__FUNCTION__, "%s", error_ptr);
+
+        }        
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to write file to storage");
+		goto handler_end;
+    }
+
+		
+	const cJSON * name = cJSON_GetObjectItemCaseSensitive(root, "formulario");
+	if (cJSON_IsString(name) && (name->valuestring != NULL))
+	{
+
+		ESP_LOGI(__FUNCTION__, "%s", name->valuestring);
+	}
+	
+	const cJSON *fields = cJSON_GetObjectItemCaseSensitive(root, "fields");
+	
+
+
+	const cJSON *field = NULL;
+    cJSON_ArrayForEach(field, fields) {
+        cJSON *id = cJSON_GetObjectItemCaseSensitive(field, "id");
+        cJSON *value = cJSON_GetObjectItemCaseSensitive(field, "value");
+
+	    ESP_LOGI(__FUNCTION__, "id: %s value %s", id->valuestring, value->valuestring);
+
+    }
+
+
+*/	
+	
     /* Redirect onto root to see the updated file list */
-    //httpd_resp_set_status(req, "303 See Other");
-    //httpd_resp_set_hdr(req, "Location", "/");
+    httpd_resp_set_status(req, "303 See Other");
+    httpd_resp_set_hdr(req, "Location", req->uri);
+    
+    //set_content_type_from_enum(req, application_json);
+    //httpd_resp_sendstr_chunk(req, "{\"mensaje\": \"El dato fue recibido correctamente\"}");
     /* Send empty chunk to signal HTTP response completion */
-    set_content_type_from_enum(req, application_json);
-    httpd_resp_sendstr_chunk(req, "{\"mensaje\": \"El dato fue recibido correctamente\"}");
-    httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
+	//httpd_resp_send_chunk(req, NULL, 0);
+	httpd_resp_send(req, (const char*) "", 0);
+	result=ESP_OK;
+//handler_end:
+//	cJSON_Delete(root);
+    return result;
 }
 
 

@@ -131,7 +131,7 @@ void app_main(void)
 
     /* Initialize file storage */
     const char* base_path = "/data";
-    ESP_ERROR_CHECK(example_mount_storage(base_path));
+    //ESP_ERROR_CHECK(example_mount_storage(base_path));
 
     /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
      * Read "Establishing Wi-Fi or Ethernet Connection" section in
