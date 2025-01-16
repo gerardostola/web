@@ -26,7 +26,7 @@ function cargarOpciones() {
 
     selects.forEach(select => {
         const id = select.getAttribute('data-sel');
-        const url = `dyn?sel=${id}`;
+        const url = `dyn?id=${id}`;
         fetch(url)
             .then(response => {
                 if (!response.ok) {
@@ -63,6 +63,71 @@ function cargarOpciones() {
 }
 
 
+function cargarOpciones2() {
+    const selects = document.querySelectorAll('select[data-sel]');
+
+    selects.forEach(select => {
+        const id = select.getAttribute('data-sel');
+        const url = `dyn?sel=${id}`;
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al cargar las opciones.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Opciones recibidas para select con data-sel=${id}:`, data);
+
+                // Limpiar el <select> antes de agregar nuevas opciones
+                select.innerHTML = '';
+
+                // Crear las opciones dinámicamente a partir de los datos recibidos
+                data.opciones.forEach(opcion => {
+                    const optionElement = document.createElement('option');
+                    optionElement.value = opcion.value; // Valor del <option>
+                    optionElement.textContent = opcion.text; // Texto visible
+
+                    // Verificar si esta opción debe ser la seleccionada
+                    if (opcion.value === data.seleccionado) {
+                        optionElement.selected = true;
+                    }
+
+                    select.appendChild(optionElement);
+                });
+            })
+            .catch(error => {
+                console.error(`Error al cargar opciones para data-sel=${id}:`, error);
+                // Mostrar un mensaje de error en el <select>
+                select.innerHTML = '<option value="">Error al cargar las opciones</option>';
+            });
+    });
+}
+
+function cargarEstadoCheckboxes() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"][data-chk]');
+
+    checkboxes.forEach(checkbox => {
+        const id = checkbox.getAttribute('data-chk');
+        const url = `dyn?chk=${id}`;
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al cargar el estado del checkbox.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Estado recibido para checkbox con data-chk=${id}:`, data);
+								console.log(`data.checked =`, data.checked);
+                checkbox.checked = data.checked;
+            })
+            .catch(error => {
+                console.error(`Error al cargar estado para data-chk=${id}:`, error);
+                // Manejo de errores adicional si es necesario
+            });
+    });
+}
 
 
 
@@ -116,7 +181,7 @@ function mostrarMensaje(mensaje, tipo) {
 // Registrar el evento para cargar las opciones automáticamente al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     cargarOpciones();
-
+		cargarEstadoCheckboxes();
     const form = document.getElementById('miFormulario1');
     form.addEventListener('submit', function(event) {
         event.preventDefault(); // Evita el envío tradicional del formulario

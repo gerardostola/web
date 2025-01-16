@@ -21,20 +21,35 @@
     <h2>Formulario con Menú de Opciones</h2>
     <form id="miFormulario1" method="post">
         <div>
-            <label for="menuOpciones1">Seleccione una opción:</label>
-            <select id="menuOpciones1" name="menuOpciones1" data-sel="1">
+            <label for="campo-3">Seleccione una opción:</label>
+            <select id="campo-3" name="campo-3" data-sel="3">
                 <option value="">Cargando opciones...</option>
             </select>
         </div>
         <div>
-            <label for="menuOpciones2">Seleccione una opción:</label>
-            <select id="menuOpciones2" name="menuOpciones2" data-sel="2">
+            <label for="campo-4">Seleccione una opción:</label>
+            <select id="campo-4" name="campo-4" data-sel="4">
                 <option value="">Cargando opciones...</option>
             </select>
-        </div>
-        <div>
+        </div>       
+				<div>
+					<label>
+							<input type="hidden" name="checkbox1" value="off">
+							<input type="checkbox" id="checkbox1" name="checkbox1" data-chk="1">
+							Opción 1
+					</label>
+				</div>
+				<div>
+					<label>
+							<input type="hidden" name="checkbox2" value="off">
+							<input type="checkbox" id="checkbox2" name="checkbox2" data-chk="2">
+							Opción 2
+					</label>
+				</div>			 
+				<div>
             <button type="submit">Enviar</button>
         </div>
+				
     </form>
 </body>
 </html>
