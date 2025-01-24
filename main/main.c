@@ -13,7 +13,7 @@ typedef enum {
   INDEX_HTML,
   CONTENIDO_HTML,
   FAVICON_ICO,
-  CONTENIDO_DINAMICO_JS,
+  WEB_TOOL_JS,
 	LOG_CSV,
   //Always last
   URI_COUNT
@@ -27,8 +27,8 @@ extern const unsigned char contenido_html_start[] asm("_binary_contenido_html_st
 extern const unsigned char contenido_html_end[] asm("_binary_contenido_html_end");
 extern const unsigned char favicon_ico_start[] asm("_binary_favicon_ico_start");
 extern const unsigned char favicon_ico_end[]   asm("_binary_favicon_ico_end");
-extern const unsigned char contenido_dinamico_js_start[] asm("_binary_contenido_dinamico_js_start");
-extern const unsigned char contenido_dinamico_js_end[]   asm("_binary_contenido_dinamico_js_end");
+extern const unsigned char web_tool_js_start[] asm("_binary_web_tool_js_start");
+extern const unsigned char web_tool_js_end[]   asm("_binary_web_tool_js_end");
 
 char *log_csv_generator();
 
@@ -53,10 +53,10 @@ const wh_uri_type uri_table[URI_COUNT] = {
         .uri_end = favicon_ico_end,
 				.uri_generator_callback = NULL,
   },
-  [CONTENIDO_DINAMICO_JS] = {
-        .uri_name = "/contenido_dinamico.js",
-        .uri_start = contenido_dinamico_js_start,
-        .uri_end = contenido_dinamico_js_end,
+  [WEB_TOOL_JS] = {
+        .uri_name = "/web_tool.js",
+        .uri_start = web_tool_js_start,
+        .uri_end = web_tool_js_end,
 				.uri_generator_callback = NULL,
   },
 	[LOG_CSV] = {
@@ -73,6 +73,8 @@ typedef enum {
   DYNAMIC_DUMMY_TWO,
   DYNAMIC_DUMMY_THREE,
 	DYNAMIC_DUMMY_FOUR,
+	DYNAMIC_DUMMY_FIVE,
+	DYNAMIC_DUMMY_SIX,
   //Always last
   DYNAMIC_TABLE_SIZE
 } dynamic_content;
@@ -86,6 +88,7 @@ char* label_one_generator(webhandler_action_enum action, char* buffer)
       snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "pepino");
       return buffer;
     case WEBHANDLER_ACTION_SET:
+			ESP_LOGI(__FUNCTION__, "%s", buffer);
   }
   return NULL;
 }
@@ -97,32 +100,72 @@ char* label_two_generator(webhandler_action_enum action, char* buffer)
       snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "tomate");
       return buffer;
     case WEBHANDLER_ACTION_SET:
+			ESP_LOGI(__FUNCTION__, "%s", buffer);
   }
   return NULL;
 }
 
 char* select_one_generator(webhandler_action_enum action, char* buffer) 
 {
+	char options[]= "Oranges\nApples\nLemmons\nStrawberries\n";
+	static int selected = 4;
+	
   switch (action) {
     case WEBHANDLER_ACTION_GET:
-      snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "{\"opciones\": [{ \"value\": \"opcion1\", \"text\": \"Peras\" },{ \"value\": \"opcion2\", \"text\": \"Bananas\" },{ \"value\": \"opcion3\", \"text\": \"Naranjas\" }],\"seleccionado\": \"opcion2\"}");
-      return buffer;
+      //snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "{\"opciones\": [{ \"value\": \"1\", \"text\": \"Peras\" },{ \"value\": \"2\", \"text\": \"Bananas\" },{ \"value\": \"3\", \"text\": \"Naranjas\" }],\"sel\": \"3\"}");
+      //return buffer;
+	
+			return webhandler_send_options_select(buffer, options, selected);
+
     case WEBHANDLER_ACTION_SET:
+			ESP_LOGI(__FUNCTION__, "%s", buffer);
+			sscanf(buffer,"%d",&selected);	
   }
   return NULL;
 }
 
 char* select_two_generator(webhandler_action_enum action, char* buffer) 
 {
+	char options[]= "Garlic\nPepper\nBasil\n";
+	static int selected = 2;
+
   switch (action) {
     case WEBHANDLER_ACTION_GET:
-      snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "{\"opciones\": [{ \"value\": \"opcion1\", \"text\": \"Ajo\" },{ \"value\": \"opcion2\", \"text\": \"Limones\" },{ \"value\": \"opcion3\", \"text\": \"Señora\" }],\"seleccionado\": \"opcion2\"}");
-      return buffer;
+			//snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "{\"opciones\": [{ \"value\": \"1\", \"text\": \"Peras\" },{ \"value\": \"2\", \"text\": \"Bananas\" },{ \"value\": \"3\", \"text\": \"Naranjas\" }],\"sel\": \"3\"}");
+			//return buffer;
+			return webhandler_send_options_select(buffer, options, selected);
     case WEBHANDLER_ACTION_SET:
+			ESP_LOGI(__FUNCTION__, "%s", buffer);
+			sscanf(buffer,"%d",&selected);	
   }
   return NULL;
 }
-			
+	
+char* checkbox_one_generator(webhandler_action_enum action, char* buffer) 
+{
+  switch (action) {
+    case WEBHANDLER_ACTION_GET:
+      snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "{\"checked\": false}");
+			return buffer;
+    case WEBHANDLER_ACTION_SET:
+			ESP_LOGI(__FUNCTION__, "%s", buffer);
+  }
+  return NULL;
+}
+
+
+char* checkbox_two_generator(webhandler_action_enum action, char* buffer) 
+{
+  switch (action) {
+    case WEBHANDLER_ACTION_GET:
+      snprintf (buffer, WEB_HANDLER_BUFFER_SIZE, "{\"checked\": true}");
+			return buffer;
+    case WEBHANDLER_ACTION_SET:
+			ESP_LOGI(__FUNCTION__, "%s", buffer);
+  }
+  return NULL;
+}
+	
 const webhandler_dynamic_type dynamic_table[DYNAMIC_TABLE_SIZE] = {
   
   [DYNAMIC_DUMMY_ONE] = {
@@ -149,6 +192,19 @@ const webhandler_dynamic_type dynamic_table[DYNAMIC_TABLE_SIZE] = {
         .content_type = text_plain,
         .callback = select_two_generator
   },
+  [DYNAMIC_DUMMY_FIVE] = {
+        .id = 5,
+				.html_type = WEBHANDLER_HTML_TYPE_CHECKBOX,
+        .content_type = text_plain,
+        .callback = checkbox_one_generator
+  },
+  [DYNAMIC_DUMMY_SIX] = {
+        .id = 6,
+				.html_type = WEBHANDLER_HTML_TYPE_CHECKBOX,
+        .content_type = text_plain,
+        .callback = checkbox_two_generator
+  },	
+	
 };
 
 
@@ -186,11 +242,11 @@ void app_main(void)
     ESP_ERROR_CHECK(example_connect());
 
     /* Start the file server */
-    ESP_ERROR_CHECK(web_handler_init(base_path, 
+    web_handler_init(base_path, 
                     uri_table, 
                     URI_COUNT,
                     dynamic_table,
                     DYNAMIC_TABLE_SIZE                                       
-                    ));
-    ESP_LOGI(TAG, "started");
+                    );
+
 }

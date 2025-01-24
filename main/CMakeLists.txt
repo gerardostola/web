@@ -5,5 +5,5 @@ idf_component_register( SRCS "main.c"
 															"../www-root/favicon.ico" 
                               "../www-root/index.html" 
                               "../www-root/contenido.html"
-                              "../www-root/contenido_dinamico.js"
+                              "../www-root/web_tool.js"
                        )

@@ -1,55 +1,53 @@
-<!DOCTYPE html>
-<html lang="es">
+<! DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contenido Dinámico</title>
-    <script src="contenido_dinamico.js" defer></script>
+    <title>Dynamic content</title>
+    <script src="web_tool.js" defer></script>
 </head>
 <body>
-    <h1>Contenido Dinámico</h1>
-    <p>Ejemplo de carga de contenido y opciones dinámicas.</p>
+    <h1>Dynamic content</h1>
+    <p>Content, options loaded dynamically</p>
 
-    <div id="campo-1">
-        <button onclick="cargarContenido(1, 'campo-1')">Cargar Contenido 1</button>
+    <div id="1">
+        <button onclick="fillOne(1, '1')">Get text 1</button>
     </div>
-    <div id="campo-2">
-        <button onclick="cargarContenido(2, 'campo-2')">Cargar Contenido 2</button>
+    <div id="2">
+        <button onclick="fillOne(2, '2')">Get text 2</button>
     </div>
 
-    <!-- Formulario con Menú de Opciones -->
-    <h2>Formulario con Menú de Opciones</h2>
-    <form id="miFormulario1" method="post">
+    <h2>Config form</h2>
+    <form id="myform" action="config">
         <div>
-            <label for="campo-3">Seleccione una opción:</label>
-            <select id="campo-3" name="campo-3" data-sel="3">
-                <option value="">Cargando opciones...</option>
+            <label for="3">Select 1:</label>
+            <select id="3" name="3">
+                <option value="">Loading...</option>
             </select>
         </div>
         <div>
-            <label for="campo-4">Seleccione una opción:</label>
-            <select id="campo-4" name="campo-4" data-sel="4">
-                <option value="">Cargando opciones...</option>
+            <label for="4">Select 2:</label>
+            <select id="4" name="4">
+                <option value="">Loading...</option>
             </select>
         </div>       
 				<div>
 					<label>
-							<input type="hidden" name="checkbox1" value="off">
-							<input type="checkbox" id="checkbox1" name="checkbox1" data-chk="1">
-							Opción 1
+							<input type="hidden" name="5" value="off">
+							<input type="checkbox" id="5" name="5">
+							Checkbox 1
 					</label>
 				</div>
 				<div>
 					<label>
-							<input type="hidden" name="checkbox2" value="off">
-							<input type="checkbox" id="checkbox2" name="checkbox2" data-chk="2">
-							Opción 2
+							<input type="hidden" name="6" value="off">
+							<input type="checkbox" id="6" name="6">
+							Checkbox 2
 					</label>
 				</div>			 
 				<div>
-            <button type="submit">Enviar</button>
-        </div>
-				
+            <button type="submit">Save</button>
+        </div>				
     </form>
 </body>
 </html>
