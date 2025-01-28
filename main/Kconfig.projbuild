@@ -62,10 +62,6 @@ menu "HTTP file_serving example menu"
             default 35 if IDF_TARGET_ESP32S3
             default 1
 
-        config EXAMPLE_PIN_CLK
-            int "CLK GPIO number"
-            default 36 if IDF_TARGET_ESP32S3
-            default 2
 
         config EXAMPLE_PIN_D0
             int "D0 GPIO number"

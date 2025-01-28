@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/param.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
@@ -14,7 +15,7 @@
 #include "esp_vfs.h"
 #include "esp_spiffs.h"
 #include "esp_http_server.h"
-#include "web_handler.h"
+#include "webtool.h"
 
 /* Max length a file path can have on storage */
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
@@ -29,6 +30,7 @@ struct file_server_data {
 
     /* Scratch buffer for user exchange */
     char scratch[WEB_HANDLER_BUFFER_SIZE];
+		size_t scratch_used_buffer;
     
     const wh_uri_type *uri_table;
     size_t uri_table_size;
@@ -203,16 +205,16 @@ static esp_err_t dynamic_get_handler(httpd_req_t *req)
 
 				if (ESP_OK==set_content_type_from_enum(req, server_data->dynamic_table[i].content_type)) {
 					if (NULL==server_data->dynamic_table[i].callback) {
-						ESP_LOGI(__FUNCTION__, "sin callback");	
+						ESP_LOGE(__FUNCTION__, "callback undefined");	
 						//goto dynamic_get_handler_end;
 						httpd_resp_send(req, (const char*) server_data->scratch, 0);
 					}
 					else {
-						server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_GET, server_data->scratch);
-						int returned_data_size = strlen (server_data->scratch);
+						int returned_data_size = server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_GET, 
+																																						server_data->scratch,
+																																						WEB_HANDLER_BUFFER_SIZE);
 						if (returned_data_size>0) {
 							httpd_resp_send(req, (const char*) server_data->scratch, returned_data_size);
-						
 						}
 						else {
 							httpd_resp_send(req, (const char*) server_data->scratch, 0);
@@ -252,11 +254,12 @@ void parse_object(cJSON *item)
 static esp_err_t wh_post_handler(httpd_req_t *req)
 {
   esp_err_t	result = ESP_FAIL;
-  char buff[WEBHANDLER_MAX_CONTENT_BUFFER];
-  size_t buff_size;
+  //char buff[WEBHANDLER_MAX_CONTENT_BUFFER];
+  //size_t buff_size;
   cJSON *root = NULL;
   cJSON *set = NULL;
   cJSON *item = NULL;
+	int i;
 	
   struct file_server_data *server_data;
 
@@ -279,80 +282,131 @@ static esp_err_t wh_post_handler(httpd_req_t *req)
     ESP_LOGI(__FUNCTION__, "content length %d", req->content_len);
 
     if (req->content_len>=WEBHANDLER_MAX_CONTENT_BUFFER) {
-      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Buffer too small");
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+			ESP_LOGE(__FUNCTION__, "buffer too small (%d)", __LINE__);
       return ESP_FAIL;
     }
 
 
 
-    int received = httpd_req_recv(req, buff, req->content_len);
-    if (received <=0) {
-      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to write file to storage");
+    int received = httpd_req_recv(req, server_data->scratch, req->content_len);
+    if (received <= 0) {
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+			ESP_LOGE(__FUNCTION__, "httpd_resp_send_err %d", __LINE__);
       return ESP_FAIL;
     }
-    buff[received]=0;
+    server_data->scratch[received]=0;
     
-   ESP_LOGI(__FUNCTION__, "content %s", buff);
-	
-
-
-	 
-	 root=cJSON_Parse(buff);
-	
-	
-	
-    
-  if (root == NULL) {
-    ESP_LOGE(__FUNCTION__, "cJSON_Parse");
+   ESP_LOGI(__FUNCTION__, "content %s",  server_data->scratch);
+		 
+	 root=cJSON_Parse( server_data->scratch);
+	    
+  if (root == NULL) {    
     const char *error_ptr = cJSON_GetErrorPtr();
+
     if (error_ptr != NULL) {
-      ESP_LOGE(__FUNCTION__, "%s", error_ptr);
+      ESP_LOGE(__FUNCTION__, "cJSON_Parse %s (%d)", error_ptr, __LINE__);
     }
-		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "cJSON_Parse");
+		else {
+      ESP_LOGE(__FUNCTION__, "cJSON_Parse (%d)", __LINE__);
+		}
+		httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
 	  goto handler_end;
   }
 
 	if (strcmp(filename, "/dyn") == 0) {
-	
-
+		server_data->scratch_used_buffer=0;
 		cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "get");
-		cJSON_ArrayForEach(item, id)
-		{
-			if (!cJSON_IsNumber(item)) {
-				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "item NaN");
-				ESP_LOGE(__FUNCTION__, "item NaN");
+		if (NULL==id) {
+			httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+			ESP_LOGE(__FUNCTION__, "id NULL (%d)", __LINE__);
+			goto handler_end;
+		}
+		server_data->scratch_used_buffer = sprintf (server_data->scratch, "[");
+		cJSON_ArrayForEach(item, id) {
+			if (NULL==item || !cJSON_IsNumber(item)) {
+				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+				ESP_LOGE(__FUNCTION__, "item NaN %d",__LINE__);
 				goto handler_end;
 			}
-			ESP_LOGI(__FUNCTION__, "id %d", item->valueint);
-		}
+			//ESP_LOGI(__FUNCTION__, "id %d", item->valueint);
 
+			
+			//find callback for each item
+			for (i=0; i<server_data->dynamic_table_size;i++) {
+				//ESP_LOGI(__FUNCTION__, "server_data->dynamic_table[i].id %d", server_data->dynamic_table[i].id);
+				if (item->valueint==server_data->dynamic_table[i].id) {
+					if (NULL==server_data->dynamic_table[i].callback) {
+						httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+						ESP_LOGE(__FUNCTION__, "callback NULL (%d)",__LINE__);
+						goto handler_end;
+					}
+					server_data->scratch_used_buffer += snprintf (server_data->scratch+server_data->scratch_used_buffer,
+												WEB_HANDLER_BUFFER_SIZE-server_data->scratch_used_buffer,
+												"{\"id\":%d,",
+												item->valueint);
+												
+					if (server_data->scratch_used_buffer>=WEB_HANDLER_BUFFER_SIZE) {
+						httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+						ESP_LOGE(__FUNCTION__, "buffer too small (%d)",__LINE__);
+						goto handler_end;
+					}
+												
+					size_t returned_data = server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_GET,
+																									server_data->scratch+server_data->scratch_used_buffer,
+																									WEB_HANDLER_BUFFER_SIZE-server_data->scratch_used_buffer);
+					if (0==returned_data) {
+						httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+						ESP_LOGE(__FUNCTION__, "callback error (%d)", __LINE__);
+						goto handler_end;
+					}
+					server_data->scratch_used_buffer+= returned_data;
+					
+					server_data->scratch_used_buffer += snprintf (server_data->scratch+server_data->scratch_used_buffer,
+							WEB_HANDLER_BUFFER_SIZE-server_data->scratch_used_buffer,
+							"},");
+												
+					if (server_data->scratch_used_buffer>=WEB_HANDLER_BUFFER_SIZE) {
+						httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+						ESP_LOGE(__FUNCTION__, "buffer too small (%d)",__LINE__);
+						goto handler_end;
+					}
+
+					break;  //for
+				}
+			}
+			if (i==server_data->dynamic_table_size) {
+				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+				ESP_LOGE(__FUNCTION__, "id not found (%d)",__LINE__);
+				goto handler_end;
+			}
+		}
 		
    	/* Redirect onto root to see the updated file list */
 		httpd_resp_set_status(req, "200 OK");
 		//httpd_resp_set_hdr(req, "Location", req->uri);
 
 		set_content_type_from_enum(req, application_json);
+		sprintf (server_data->scratch+server_data->scratch_used_buffer-1,"]");								
+		ESP_LOGI(__FUNCTION__, "bueno: %s", server_data->scratch);
 
-
-		buff_size = sprintf(buff, "{ \"checkboxes\": [ { \"id\": \"5\", \"checked\": true }, { \"id\": \"6\", \"checked\": false } ], \"selects\": [ { \"id\": \"3\", \"opciones\": [{\"value\": \"1\", \"text\": \"Opción 1\"}, {\"value\": \"2\", \"text\": \"Opción 2\"}], \"sel\": \"1\" }, { \"id\": \"4\", \"opciones\": [{\"value\": \"3\", \"text\": \"Opción 3\"}, {\"value\": \"4\", \"text\": \"Opción 4\"}], \"sel\": \"4\" }] }");
-		httpd_resp_send(req, (const char*) buff, buff_size);
+		httpd_resp_send(req, (const char*) server_data->scratch, server_data->scratch_used_buffer);
 	}
 	else {
-
 		set = cJSON_GetObjectItemCaseSensitive(root, "set");
 		cJSON_ArrayForEach(item, set)
 		{
 			cJSON *id = cJSON_GetObjectItemCaseSensitive(item, "id");
 			cJSON *value = cJSON_GetObjectItemCaseSensitive(item, "value");
 
-			if (!cJSON_IsNumber(id)) {
-				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "id NaN");
-				ESP_LOGE(__FUNCTION__, "id NaN");
+			if (NULL==id || !cJSON_IsNumber(id)) {
+				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+				ESP_LOGE(__FUNCTION__, "id NaN (%d)",__LINE__);
 				goto handler_end;
 			}
 			if (cJSON_IsString(value) && (value->valuestring == NULL)) {
-				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "value string error");
-				ESP_LOGE(__FUNCTION__, "value string error");
+				httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+				ESP_LOGE(__FUNCTION__, "value string error (%d)", __LINE__);
 				goto handler_end;				
 			}
 			ESP_LOGI(__FUNCTION__, "id: %d value, %s", id->valueint, value->valuestring);
@@ -361,18 +415,19 @@ static esp_err_t wh_post_handler(httpd_req_t *req)
 			for (int i=0; i<server_data->dynamic_table_size;i++) {
 				if (id->valueint==server_data->dynamic_table[i].id) {
 					if (NULL==server_data->dynamic_table[i].callback) {
-						httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "callback error");
-						ESP_LOGE(__FUNCTION__, "callback error");
+						httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Error");
+						ESP_LOGE(__FUNCTION__, "callback NULL (%d)",__LINE__);
 						goto handler_end;
 					}
-					
+					/*
 					if (WEBHANDLER_HTML_TYPE_SELECT ==server_data->dynamic_table[i].html_type) {
 						int index;
 						sscanf(value->valuestring, "%d", &index);
 						sprintf (value->valuestring, "%d", index);
 					}
-					
-					server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_SET, value->valuestring);
+					*/
+					server_data->dynamic_table[i].callback(WEBHANDLER_ACTION_SET, value->valuestring, strlen(value->valuestring));
+					break; //for
 				}
 			}
 		}
@@ -382,9 +437,9 @@ static esp_err_t wh_post_handler(httpd_req_t *req)
 		//httpd_resp_set_hdr(req, "Location", req->uri);
 
 		set_content_type_from_enum(req, application_json);
-		buff_size = sprintf(buff, "{ \"success\": true,  \"mensaje\": \"Configuracion actualizada\"}");
+		server_data->scratch_used_buffer=sprintf(server_data->scratch, "{\"success\": true,\"mensaje\":\"Configuracion actualizada\"}");
 
-		httpd_resp_send(req, (const char*) buff, buff_size);
+		httpd_resp_send(req,(const char*)server_data->scratch,server_data->scratch_used_buffer);
 		//httpd_resp_sendstr_chunk(req, "");
 		/* Send empty chunk to signal HTTP response completion */
 		//httpd_resp_send_chunk(req, NULL, 0);
@@ -398,78 +453,130 @@ handler_end:
 
 
 int webhandler_send_select_options(char *buffer) {
-    //char texto[] = "Línea 1\nLínea 2\nLínea 3\n";
     char *field;
 
-    // Usa strtok para dividir el texto por los saltos de línea
     field = strtok(buffer, "\n");
     while (field != NULL) {
-				ESP_LOGI(TAG, "field %s", field);
-       
+				ESP_LOGI(TAG, "field %s", field);      
         field = strtok(NULL, "\n");
     }
-
     return 0;
 }
 
-
-
-char *webhandler_send_options_select(char *buffer, char *options, int selected)
+size_t webtool_get_select(char *buffer, size_t buffer_size, char *options, int selected)
 {
-
-	int available_buffer = WEB_HANDLER_BUFFER_SIZE;
-	int used;
+	int available_buffer = buffer_size;
+	size_t used;
 	char *pBuffer = buffer;
-	int index = 1;
-	//used = snprintf (pBuffer, available_buffer, "{\"opciones\": [{ \"value\": \"1\", \"text\": \"Ajo\" },{ \"value\": \"2\", \"text\": \"Limones\" },{ \"value\": \"3\", \"text\": \"Señora\" }],\"sel\": \"3\"}");
-  
+	int index = 1;  
 	
-	used = snprintf (pBuffer, available_buffer, "{\"opciones\": [");
-  
+	used = snprintf (pBuffer, available_buffer, "\"opt\":["); 
 	if (used>=available_buffer) {
-		return buffer;
+		ESP_LOGE(__FUNCTION__, "buffer too small (%d)", __LINE__);
+		return 0;				
 	}
 	
 	pBuffer+=used;
 	available_buffer-=used;
-	
-
 	char *field;
-
 	field = strtok(options, "\n");
 	while (field != NULL) {
-			used = snprintf (pBuffer, available_buffer, "{\"value\": \"%d\", \"text\": \"%s\"},", index, field);
-
+			used = snprintf (pBuffer, available_buffer, "{\"value\":\"%d\",\"text\":\"%s\"},", index, field);
 			if (used>=available_buffer) {
-				ESP_LOGE(__FUNCTION__, "buffer too small");
-				return NULL;
+				ESP_LOGE(__FUNCTION__, "buffer too small (%d)", __LINE__);
+				return 0;				
 			}
-			
 			pBuffer+=used;
 			available_buffer-=used;
-	
-			//ESP_LOGI(TAG, "buffer %s", buffer);
-			//ESP_LOGI(TAG, "field %s", field);
 			index++;
 			field = strtok(NULL, "\n");
-//			vTaskDelay(1000/portTICK_PERIOD_MS);
 	}
 	pBuffer = pBuffer - 1;
-	used = snprintf (pBuffer, available_buffer+1, "],\"sel\": \"%d\"}", selected);
-
+	used = snprintf (pBuffer, available_buffer+1, "],\"sel\":\"%d\"", selected);
 	if (used>=available_buffer) {
-		ESP_LOGE(__FUNCTION__, "buffer too small");
-		return NULL;
+		ESP_LOGE(__FUNCTION__, "buffer too small (%d)", __LINE__);
+		return 0;
 	}
-
+  pBuffer+=used;
 	ESP_LOGI(__FUNCTION__, "%s", buffer);
-
-	
-	return buffer;
+	return (size_t) (pBuffer - buffer);
 }
 
 
-/* Init web handler */
+size_t webtool_get_checkbox(char *buffer, size_t buffer_size, bool checked)
+{
+	size_t used;
+  
+	if (checked) {
+		used = snprintf (buffer, buffer_size, "\"checked\":true");
+  }
+	else
+	{
+		used = snprintf (buffer, buffer_size, "\"checked\":false");
+	}
+	if (used>=buffer_size) {
+		ESP_LOGE(__FUNCTION__, "buffer too small (%d)", __LINE__);
+		return 0;				
+	}
+	return used;	
+}
+
+bool webtool_set_checkbox(char *buffer, size_t buffer_size, bool *checked)
+{
+	bool parse_ok = false;
+	
+	
+	ESP_LOGI(__FUNCTION__, "buffer %s size %d", buffer, buffer_size);
+	
+	if (3==buffer_size && buffer[0]=='o' && buffer[1]=='f' && buffer[2]=='f') {
+		*checked = false;
+		parse_ok=true;
+		goto webtool_set_checkbox_end;
+	}
+	if (2==buffer_size && buffer[0]=='o' && buffer[1]=='n') {
+		*checked = true;
+		parse_ok=true;
+	}
+webtool_set_checkbox_end:	
+	return parse_ok;
+}
+
+
+size_t webtool_get_input_text(char *buffer, size_t buffer_size, char *text)
+{
+	size_t used;
+			
+	used = snprintf (buffer, buffer_size, "\"value\":\"%s\"", text);
+	if (used>=buffer_size) {
+		ESP_LOGE(__FUNCTION__, "buffer too small (%d)", __LINE__);
+		used = 0;
+	}
+	return used;
+}
+
+bool webtool_set_input_text(char *input_buffer, 
+														size_t input_buffer_size, 
+														char *output_buffer, 
+														size_t output_buffer_size)
+{
+	bool parse_ok = false;
+	
+	
+	
+	
+	if (output_buffer_size<input_buffer_size) {
+		ESP_LOGE(__FUNCTION__, "output_buffer_size<input_buffer_size");
+		goto webtool_set_input_text_end;
+	}
+	snprintf (output_buffer, output_buffer_size, "%s", input_buffer);
+	parse_ok=true;
+
+webtool_set_input_text_end:	
+	return parse_ok;
+
+
+}
+														
 esp_err_t web_handler_init	(const char *base_path, 
                              const wh_uri_type *uri_table, 
                              const size_t uri_table_size,

@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dynamic content</title>
-    <script src="web_tool.js" defer></script>
+    <script src="webtool.js" defer></script>
 </head>
 <body>
     <h1>Dynamic content</h1>
-    <p>Content, options loaded dynamically</p>
+    <p>Content loaded dynamically</p>
 
     <div id="1">
         <button onclick="fillOne(1, '1')">Get text 1</button>
@@ -44,7 +44,13 @@
 							<input type="checkbox" id="6" name="6">
 							Checkbox 2
 					</label>
-				</div>			 
+				</div>
+				<div>
+					<label>
+							<input type="text" id="7" name="7" minlength="4" maxlength="15" size="15">
+							Text 1
+					</label>
+				</div>						
 				<div>
             <button type="submit">Save</button>
         </div>				
